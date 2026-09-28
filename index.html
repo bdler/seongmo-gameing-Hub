@@ -5,6 +5,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>성모 게이밍 허브</title>
+  <!-- 홈 화면 앱(PWA) 설정 -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#0b0620">
+  <meta name="mobile-web-app-capable" content="yes">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
@@ -310,6 +316,22 @@
     .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink)); animation: load 1.2s forwards; }
     @keyframes load { to { width: 100%; } }
 
+    /* ===== 게임 화면 (허브 안에서 전체화면으로 실행) ===== */
+    .player-frame {
+      position: fixed; inset: 0; z-index: 40; display: none; background: #000;
+    }
+    .player-frame.show { display: block; }
+    .player-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+    .home-btn {
+      position: fixed; top: 14px; left: 14px; z-index: 41;
+      display: flex; align-items: center; gap: 6px;
+      padding: 10px 16px; border-radius: 999px; border: none; cursor: pointer;
+      font: inherit; font-size: 16px; color: #fff;
+      background: rgba(20, 12, 50, .7); backdrop-filter: blur(8px);
+      border: 1px solid var(--panel-border); opacity: .75;
+    }
+    .home-btn:active { opacity: 1; transform: scale(.95); }
+
     .toast {
       position: fixed; left: 50%; bottom: 100px; z-index: 60;
       transform: translateX(-50%) translateY(20px); opacity: 0;
@@ -407,6 +429,12 @@
       <p>LOADING...</p>
       <div class="bar"><i></i></div>
     </div>
+  </div>
+
+  <!-- 게임 화면 -->
+  <div class="player-frame" id="playerFrame">
+    <button class="home-btn" id="homeBtn">🏠 허브로</button>
+    <iframe id="gameFrame" allow="fullscreen; autoplay" allowfullscreen></iframe>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -599,13 +627,28 @@
         modal.classList.remove('show');
         renderAll();
         if (g.url) {
-          // 앱스 스크립트 iframe 안에서도 정상 이동되도록 top 창으로 이동
-          window.open(g.url, '_top');
+          openInHub(g.url);
         } else {
           toast('🔗 "' + g.title + '" 링크가 아직 등록되지 않았어요 (+10 🪙)');
         }
       }, 1300);
     }
+
+    /* ---------- 허브 안에서 게임 띄우기 ----------
+       각 게임의 Code.gs doGet() 에
+       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL) 이 있어야 합니다. */
+    function openInHub(url) {
+      $('gameFrame').src = url;
+      $('playerFrame').classList.add('show');
+      history.pushState({ game: true }, '');
+    }
+    function closeGame() {
+      $('playerFrame').classList.remove('show');
+      $('gameFrame').src = 'about:blank';
+    }
+    $('homeBtn').addEventListener('click', function () { history.back(); });
+    // 안드로이드 뒤로가기 버튼 → 허브로 돌아오기
+    window.addEventListener('popstate', closeGame);
 
     /* ---------- 이벤트 ---------- */
     document.addEventListener('click', function (e) {
@@ -650,6 +693,11 @@
     /* ---------- 시작 ---------- */
     setHero();
     renderAll();
+
+    // 홈 화면 앱(PWA)용 서비스워커 등록 — GitHub Pages(https)에서만 동작
+    if ('serviceWorker' in navigator && location.protocol === 'https:' && !(window.google && google.script)) {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    }
 
     // 구글 앱스 스크립트로 배포된 경우: 시트에서 게임 목록 불러오기
     if (window.google && google.script && google.script.run) {
