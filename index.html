@@ -97,6 +97,14 @@
     }
     .player-info b { display: block; font-size: 17px; }
     .player-info span { font-size: 13px; color: var(--muted); }
+    .fs-btn {
+      flex: none; width: 56px; height: 56px; border-radius: 16px; cursor: pointer;
+      font-size: 26px; color: var(--text);
+      background: var(--panel); border: 1px solid var(--panel-border);
+    }
+    .fs-btn:active { transform: scale(.94); }
+    .fs-btn.on { background: var(--neon-cyan); color: #1a0b3a; border-color: var(--neon-cyan); }
+    .player { margin-left: auto; }
     .coins {
       margin-left: 8px; padding: 6px 12px; border-radius: 999px;
       background: rgba(255, 225, 77, .15); color: var(--neon-yellow); font-size: 16px;
@@ -380,6 +388,7 @@
         </div>
         <div class="coins">🪙 <span id="coinCount">0</span></div>
       </div>
+      <button class="fs-btn" id="fsBtn" title="전체화면">⛶</button>
     </header>
 
     <!-- 검색 -->
@@ -680,6 +689,32 @@
 
     $('searchInput').addEventListener('input', function (e) { state.query = e.target.value; renderGrid(); });
     $('heroPlay').addEventListener('click', function () { playGame(state.heroId); });
+
+    /* ---------- 전체화면 (주소창·상단바 숨기기) ----------
+       앱 설치가 막힌 크롬에서도 버튼 한 번으로 주소창 없이 볼 수 있습니다.
+       허브 안에서 게임을 열어도 페이지 이동이 없어서 전체화면이 유지됩니다. */
+    function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+    function toggleFullscreen() {
+      var el = document.documentElement;
+      if (isFullscreen()) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        return;
+      }
+      var req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!req) { toast('이 브라우저는 전체화면을 지원하지 않아요'); return; }
+      try {
+        var p = req.call(el, { navigationUI: 'hide' });
+        if (p && p.catch) p.catch(function () { toast('전체화면을 쓸 수 없는 환경이에요'); });
+      } catch (e) { toast('전체화면을 쓸 수 없는 환경이에요'); }
+    }
+    function syncFsBtn() { $('fsBtn').classList.toggle('on', isFullscreen()); }
+    $('fsBtn').addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', syncFsBtn);
+    document.addEventListener('webkitfullscreenchange', syncFsBtn);
+    // 앱(PWA)으로 설치해 이미 전체화면이면 버튼 숨기기
+    if (window.matchMedia && matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) {
+      $('fsBtn').style.display = 'none';
+    }
 
     function setHero() {
       var playable = state.games.filter(function (g) { return !g.soon; });
