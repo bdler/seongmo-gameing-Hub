@@ -525,7 +525,6 @@
     <div class="player-bar">
       <button class="home-btn" id="homeBtn">🏠 허브로</button>
       <button class="home-btn" id="fsBtn2" data-fs>⛶ 전체화면</button>
-      <button class="home-btn" id="popBtn" title="화면이 안 나오면 눌러요">↗ 새 화면으로</button>
     </div>
     <div class="fs-catcher" id="fsCatcher"><span>👆 화면을 한 번 누르면 다시 전체화면이 돼요</span></div>
   </div>
@@ -789,7 +788,6 @@
     //  '허브로' 를 두 번 눌러야 돌아오는 문제가 생깁니다)
     function openInHub(url) {
       closeGame();
-      state.playingUrl = url;
       var f = document.createElement('iframe');
       f.id = 'gameFrame';
       f.setAttribute('allow', 'fullscreen; autoplay');
@@ -812,8 +810,6 @@
       // 게임을 열 때 넣어 둔 기록 1칸 정리 (화면은 이미 닫혀 있음)
       if (history.state && history.state.hubGame) history.back();
     });
-    // 허브 안에서 화면이 안 뜨는 게임은 새 화면으로 열기
-    $('popBtn').addEventListener('click', function () { window.open(state.playingUrl, '_top'); });
     // 안드로이드 뒤로가기 버튼 → 허브로 돌아오기
     window.addEventListener('popstate', closeGame);
 
