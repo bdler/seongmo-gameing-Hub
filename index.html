@@ -852,29 +852,38 @@
        브라우저 규칙상 웹페이지는 '화면을 터치했을 때'만 전체화면이 될 수 있어요.
        (뒤로가기·앱 전환·알림창 등으로 풀리는 것도 막을 수 없어요)
        그래서 ⛶ 를 켜 두면 '고정' 상태가 되어, 전체화면이 풀린 뒤
-       다음 터치 한 번에 자동으로 다시 전체화면이 됩니다.
+       다음 터치 한 번에(게임 화면 안을 눌러도) 자동으로 다시 전체화면이 됩니다.
        ⛶ 를 다시 누르면 전체화면과 고정이 함께 꺼집니다. (태블릿마다 따로 기억) */
     var IS_INSTALLED_APP = !!(window.matchMedia &&
       matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches);
     var fs = {
       lock: !IS_INSTALLED_APP && load('hub_fs_lock', true),
-      failed: false   // 이 환경에서 전체화면이 안 되면 자동 시도를 멈춤
+      fails: 0,        // 연속 실패 횟수 — 3번 넘게 실패하면 이 환경은 안 되는 걸로 보고 자동 시도를 멈춤
+      pending: false   // 전체화면 요청 처리 중
     };
+    // 터치 신호 확인 기능(크롬 72+)이 있으면 게임 안 터치로도 전체화면 복귀 가능
+    var HAS_USER_ACTIVATION = !!(navigator.userActivation && 'isActive' in navigator.userActivation);
+    function fsBlocked() { return fs.fails >= 3; }
 
     function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
 
     function enterFullscreen(explicit) {
+      if (fs.pending) return;
       var el = document.documentElement;
       var req = el.requestFullscreen || el.webkitRequestFullscreen;
+      function done() { fs.pending = false; fs.fails = 0; syncFs(); }
       function fail() {
-        fs.failed = true;
+        fs.pending = false;
+        fs.fails++;
         syncFs();
         if (explicit) toast('전체화면을 쓸 수 없는 환경이에요');
       }
-      if (!req) { fail(); return; }
+      if (!req) { fs.fails = 3; fail(); return; }
+      fs.pending = true;
       try {
         var p = req.call(el, { navigationUI: 'hide' });
-        if (p && p.then) p.then(function () { fs.failed = false; }, fail);
+        if (p && p.then) p.then(done, fail);
+        else fs.pending = false; // 옛날 webkit 방식은 결과를 알려주지 않음
       } catch (e) { fail(); }
     }
 
@@ -891,19 +900,41 @@
         toast('전체화면 고정을 껐어요');
       } else {
         fs.lock = true;
-        fs.failed = false;
+        fs.fails = 0;
         enterFullscreen(true);
       }
       save('hub_fs_lock', fs.lock);
       syncFs();
     }
 
-    // 고정 상태에서 전체화면이 풀려 있으면, 어디를 누르든 그 터치로 다시 전체화면
+    function wantsAutoFullscreen() {
+      return fs.lock && !fsBlocked() && !IS_INSTALLED_APP && !isFullscreen();
+    }
+
+    // 고정 상태에서 전체화면이 풀려 있으면, 허브 어디를 누르든 그 터치로 다시 전체화면
     document.addEventListener('click', function (e) {
-      if (!e.isTrusted || !fs.lock || fs.failed || isFullscreen()) return;
+      if (!e.isTrusted || !wantsAutoFullscreen()) return;
       if (e.target.closest && e.target.closest('[data-fs]')) return; // ⛶ 버튼은 자기가 처리
       enterFullscreen(false);
     }, true);
+
+    // 게임 안을 터치해도 복귀: 게임(안쪽 화면)을 터치하면 브라우저가 바깥 허브에도
+    // '방금 터치됨' 신호를 약 5초간 켜 줍니다. 그 신호가 보이면 전체화면을 다시 요청해요.
+    // (게임 터치는 그대로 게임에 전달되므로 게임을 방해하지 않아요)
+    if (HAS_USER_ACTIVATION) {
+      setInterval(function () {
+        if (!wantsAutoFullscreen() || document.visibilityState !== 'visible') return;
+        if (navigator.userActivation.isActive) enterFullscreen(false);
+      }, 250);
+    }
+
+    // 고정 상태에서 전체화면이 풀리면 안내
+    function onFsChange() {
+      if (!isFullscreen() && fs.lock && !fsBlocked() && !IS_INSTALLED_APP) {
+        toast('👆 화면을 한 번 누르면 다시 전체화면이 돼요');
+      }
+      syncFs();
+    }
 
     function syncFs() {
       var on = isFullscreen();
@@ -913,14 +944,14 @@
       $('fsBtn2').textContent = on ? '⛶' : '⛶ 전체화면';
       $('fsBtn2').title = on ? '전체화면 끄기' : '전체화면';
       $('fsBtn2').classList.toggle('attn', !on && !IS_INSTALLED_APP);
-      // 게임 중에는 터치가 게임으로 가버리므로, 게임 위에 '한 번 누르기' 막을 띄움
-      $('fsCatcher').classList.toggle('show', gameOpen && fs.lock && !fs.failed && !on && !IS_INSTALLED_APP);
+      // 터치 신호 확인 기능이 없는 옛날 브라우저만: 게임 위에 '한 번 누르기' 막을 띄움
+      $('fsCatcher').classList.toggle('show', !HAS_USER_ACTIVATION && gameOpen && wantsAutoFullscreen());
     }
 
     $('fsBtn').addEventListener('click', onFsButton);
     $('fsBtn2').addEventListener('click', onFsButton);
-    document.addEventListener('fullscreenchange', syncFs);
-    document.addEventListener('webkitfullscreenchange', syncFs);
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
 
     // 앱(PWA)으로 설치해 이미 전체화면이면 버튼 숨기기
     if (IS_INSTALLED_APP) {
