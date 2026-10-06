@@ -1,6 +1,6 @@
 // 허브 화면을 캐시해 두어 앱처럼 빠르게 열리도록 합니다.
 // 파일을 수정하면 CACHE 이름의 숫자를 올려 주세요 (예: hub-v2).
-var CACHE = 'hub-v6';
+var CACHE = 'hub-v7';
 var FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {

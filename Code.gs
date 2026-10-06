@@ -29,13 +29,15 @@ function getHubData() {
   var admin = isAdmin_(email);
   return {
     games: loadGames_(),
+    // 관리자가 마지막으로 저장할 때 알고 있던 기본 게임 id (새 기본 게임 자동 추가용)
+    knownDefaults: loadKnownDefaults_(),
     isAdmin: admin,
     email: admin ? email : ''
   };
 }
 
 /** 관리자만 호출 가능: 게임 목록 저장 */
-function saveGames(games) {
+function saveGames(games, knownDefaults) {
   if (!isAdmin_(currentEmail_())) {
     throw new Error('관리자 계정만 저장할 수 있어요.');
   }
@@ -48,6 +50,10 @@ function saveGames(games) {
   lock.waitLock(10000);
   try {
     storeGames_(clean);
+    if (Array.isArray(knownDefaults)) {
+      var ids = knownDefaults.slice(0, 200).map(function (id) { return String(id).slice(0, 40); });
+      PropertiesService.getScriptProperties().setProperty(GAMES_KEY + '_KNOWN_DEFAULTS', JSON.stringify(ids));
+    }
   } finally {
     lock.releaseLock();
   }
@@ -97,6 +103,16 @@ function loadGames_() {
     return JSON.parse(json);
   } catch (e) {
     return [];
+  }
+}
+
+function loadKnownDefaults_() {
+  var v = PropertiesService.getScriptProperties().getProperty(GAMES_KEY + '_KNOWN_DEFAULTS');
+  if (!v) return null;
+  try {
+    return JSON.parse(v);
+  } catch (e) {
+    return null;
   }
 }
 
