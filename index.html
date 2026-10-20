@@ -654,6 +654,7 @@
     var state = {
       games: normalizeGames(DEFAULT_GAMES),
       isAdmin: false,
+      adminPw: '', // ?admin 으로 비밀번호 로그인했을 때만 채워짐
       category: '전체',
       view: 'home',
       query: '',
@@ -1136,7 +1137,7 @@
           btn.disabled = false; btn.textContent = '💾 저장';
           toast('저장 실패: ' + (err && err.message ? err.message : err));
         })
-        .saveGames(state.draft, defaultIds());
+        .saveGames(state.draft, defaultIds(), state.adminPw);
     });
 
     /* ---------- 관리자: 접속자 수 ---------- */
@@ -1169,7 +1170,7 @@
         .withFailureHandler(function (err) {
           box.innerHTML = '<p class="stats-note">불러오기 실패: ' + esc(err && err.message ? err.message : String(err)) + '</p>';
         })
-        .getStats();
+        .getStats(state.adminPw);
     });
 
     $('adminBtn').addEventListener('click', openAdmin);
@@ -1197,13 +1198,23 @@
       } catch (e) { return ''; }
     }
 
-    // 주소 끝에 ?admin (또는 #admin) 을 붙여 열었는데 관리자가 아니면 이유를 알려 줌
-    function checkAdminHint(who) {
+    // 주소 끝에 ?admin (또는 #admin) 을 붙여 열면 관리자 비밀번호를 물어봄
+    function askAdminPassword() {
       google.script.url.getLocation(function (loc) {
         if (!('admin' in (loc.parameter || {})) && loc.hash !== 'admin') return;
-        toast(who
-          ? '관리자 아님 — 지금 계정: ' + who + ' (Code.gs 의 ADMIN_EMAILS 확인)'
-          : '계정을 확인할 수 없어요 — 관리자는 액세스가 \"smwelfare.or.kr 내 모든 사용자\" 인 배포 주소로 열어 주세요', 10000);
+        var pw = prompt('관리자 비밀번호');
+        if (!pw) return;
+        google.script.run
+          .withSuccessHandler(function (ok) {
+            if (!ok) { toast('비밀번호가 맞지 않아요 (스크립트 속성 ADMIN_PASSWORD 확인)', 6000); return; }
+            state.adminPw = pw;
+            showAdminButton('비밀번호 로그인');
+            toast('관리자로 로그인했어요 — 오른쪽 위 ⚙️');
+          })
+          .withFailureHandler(function (err) {
+            toast(err && err.message ? err.message : String(err), 6000);
+          })
+          .adminLogin(pw);
       });
     }
 
@@ -1229,7 +1240,7 @@
           if (!data) return;
           if (data.games && data.games.length) applyGames(mergeNewDefaults(data.games, data.knownDefaults));
           if (data.isAdmin) showAdminButton(data.email);
-          else checkAdminHint(data.who);
+          else askAdminPassword();
         })
         .withFailureHandler(function (err) {
           toast('서버 연결 실패: ' + (err && err.message ? err.message : err), 8000);

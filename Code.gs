@@ -5,10 +5,10 @@
  *   - 다음 사용자 인증 정보로 실행: 나
  *   - 액세스 권한: 모든 사용자 (태블릿용 — 로그인 없이 열림)
  *
- * 관리자 화면은 배포를 하나 더 만들어 그 주소로 엽니다:
- *   - 액세스 권한: smwelfare.or.kr 내 모든 사용자
- *     ('모든 사용자' 배포에서는 구글이 접속 계정을 알려 주지 않아 관리자를 알아볼 수 없어요)
- *   두 배포는 같은 스크립트라 게임 목록과 접속 통계를 함께 씁니다.
+ * 관리자 화면 열기: 허브 주소 끝에 ?admin 을 붙여 열고 관리자 비밀번호 입력
+ *   - 비밀번호는 프로젝트 설정(⚙️) > 스크립트 속성 에 ADMIN_PASSWORD 로 넣어 두세요.
+ *   - '모든 사용자' 배포에서는 구글이 접속 계정을 알려 주지 않아서 비밀번호로 확인합니다.
+ *     (액세스가 smwelfare.or.kr 인 배포라면 ADMIN_EMAILS 계정은 비밀번호 없이 관리자)
  *
  * 게임 목록은 스크립트 속성(PropertiesService)에 저장됩니다.
  * 관리자가 한 번도 저장하지 않았으면 index.html 의 DEFAULT_GAMES 가 쓰입니다.
@@ -22,6 +22,8 @@ var CHUNK_SIZE = 2500; // 속성 값 1개당 약 9KB 제한 (한글은 글자당
 
 var STATS_KEY = 'HUB_STATS';
 var STATS_DAYS = 30; // 날짜별 접속 기록은 최근 30일만 보관
+
+var MAX_PW_FAILS = 10; // 비밀번호를 10번 틀리면 10분 동안 잠금
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('index')
@@ -41,15 +43,13 @@ function getHubData(deviceId) {
     // 관리자가 마지막으로 저장할 때 알고 있던 기본 게임 id (새 기본 게임 자동 추가용)
     knownDefaults: loadKnownDefaults_(),
     isAdmin: admin,
-    email: admin ? email : '',
-    // 접속한 본인 계정 (관리자 버튼이 안 뜰 때 ?admin 으로 확인용)
-    who: email
+    email: admin ? email : ''
   };
 }
 
 /** 관리자만 호출 가능: 게임 목록 저장 */
-function saveGames(games, knownDefaults) {
-  if (!isAdmin_(currentEmail_())) {
+function saveGames(games, knownDefaults, password) {
+  if (!isAuthorized_(password)) {
     throw new Error('관리자 계정만 저장할 수 있어요.');
   }
   if (!Array.isArray(games)) throw new Error('게임 목록 형식이 올바르지 않아요.');
@@ -71,9 +71,14 @@ function saveGames(games, knownDefaults) {
   return clean;
 }
 
+/** 관리자 비밀번호 확인 (허브 주소 끝에 ?admin 을 붙여 열었을 때) */
+function adminLogin(password) {
+  return isAuthorized_(password);
+}
+
 /** 관리자만 호출 가능: 접속자 수 통계 */
-function getStats() {
-  if (!isAdmin_(currentEmail_())) {
+function getStats(password) {
+  if (!isAuthorized_(password)) {
     throw new Error('관리자 계정만 볼 수 있어요.');
   }
   var props = PropertiesService.getScriptProperties();
@@ -146,6 +151,19 @@ function hash_(text) {
 function currentEmail_() {
   // 같은 도메인 사용자가 접속하면 이메일이 채워지고, 그 외에는 빈 문자열
   return String(Session.getActiveUser().getEmail() || '').toLowerCase();
+}
+
+/** 관리자 계정이거나 관리자 비밀번호가 맞으면 true */
+function isAuthorized_(password) {
+  if (isAdmin_(currentEmail_())) return true;
+  var real = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD');
+  if (!real || !password) return false;
+  var cache = CacheService.getScriptCache();
+  var fails = Number(cache.get('ADMIN_PW_FAILS') || 0);
+  if (fails >= MAX_PW_FAILS) throw new Error('비밀번호를 너무 많이 틀렸어요. 10분 뒤에 다시 해 주세요.');
+  if (String(password) === real) return true;
+  cache.put('ADMIN_PW_FAILS', String(fails + 1), 600);
+  return false;
 }
 
 function isAdmin_(email) {
