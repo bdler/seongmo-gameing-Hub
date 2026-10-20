@@ -3,8 +3,12 @@
  *
  * 배포: 배포 > 새 배포 > 웹 앱
  *   - 다음 사용자 인증 정보로 실행: 나
+ *   - 액세스 권한: 모든 사용자 (태블릿용 — 로그인 없이 열림)
+ *
+ * 관리자 화면은 배포를 하나 더 만들어 그 주소로 엽니다:
  *   - 액세스 권한: smwelfare.or.kr 내 모든 사용자
- *     (같은 도메인 계정이어야 관리자 이메일을 확인할 수 있어요)
+ *     ('모든 사용자' 배포에서는 구글이 접속 계정을 알려 주지 않아 관리자를 알아볼 수 없어요)
+ *   두 배포는 같은 스크립트라 게임 목록과 접속 통계를 함께 씁니다.
  *
  * 게임 목록은 스크립트 속성(PropertiesService)에 저장됩니다.
  * 관리자가 한 번도 저장하지 않았으면 index.html 의 DEFAULT_GAMES 가 쓰입니다.
@@ -27,10 +31,11 @@ function doGet() {
 }
 
 /** 허브가 처음 열릴 때 부르는 함수: 저장된 게임 목록 + 관리자 여부 */
-function getHubData() {
+function getHubData(deviceId) {
   var email = currentEmail_();
   var admin = isAdmin_(email);
-  recordVisit_(email);
+  // 계정을 알 수 없는 배포('모든 사용자')에서는 기기 id 로 접속자를 셈
+  recordVisit_(email || (deviceId ? 'device:' + String(deviceId).slice(0, 40) : ''));
   return {
     games: loadGames_(),
     // 관리자가 마지막으로 저장할 때 알고 있던 기본 게임 id (새 기본 게임 자동 추가용)
@@ -88,7 +93,7 @@ function getStats() {
 
 /* ---------------- 내부 함수 ---------------- */
 
-/** 허브가 열릴 때마다 접속 1회 + 오늘의 접속자(계정 기준)를 기록 */
+/** 허브가 열릴 때마다 접속 1회 + 오늘의 접속자(계정 또는 기기 기준)를 기록 */
 function recordVisit_(email) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(3000)) return; // 기록이 밀려도 허브 열기는 막지 않음

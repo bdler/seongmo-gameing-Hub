@@ -1155,7 +1155,7 @@
             '<span class="bar" style="width:' + Math.round(d.visits / max * 100) + '%"></span>' +
             '<span class="num">' + d.users + '명 · ' + d.visits + '회</span></div>';
         }).join('') + '</div>' +
-        '<p class="stats-note">최근 7일 접속 ' + week + '회 · 접속자는 계정 기준, 접속 횟수는 허브를 열 때마다 1회</p>';
+        '<p class="stats-note">최근 7일 접속 ' + week + '회 · 접속자는 계정(로그인 없이 열면 기기) 기준, 접속 횟수는 허브를 열 때마다 1회</p>';
     }
 
     $('statsBtn').addEventListener('click', function () {
@@ -1183,6 +1183,18 @@
       if (state.category !== '전체' && !games.some(function (g) { return g.category === state.category; })) state.category = '전체';
       setHero();
       renderAll();
+    }
+
+    // 접속자 수를 기기 단위로 세기 위한 id (로그인 없이 여는 배포용)
+    function deviceId() {
+      try {
+        var id = localStorage.getItem('hubDeviceId');
+        if (!id) {
+          id = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+          localStorage.setItem('hubDeviceId', id);
+        }
+        return id;
+      } catch (e) { return ''; }
     }
 
     // 주소 끝에 ?admin (또는 #admin) 을 붙여 열었는데 관리자가 아니면 이유를 알려 줌
@@ -1222,7 +1234,7 @@
         .withFailureHandler(function (err) {
           toast('서버 연결 실패: ' + (err && err.message ? err.message : err), 8000);
         })
-        .getHubData();
+        .getHubData(deviceId());
     } else if (location.hash === '#admin') {
       // 미리보기 전용: 주소 끝에 #admin 을 붙이면 관리 화면을 볼 수 있어요 (저장은 안 됨)
       showAdminButton('미리보기 모드');
