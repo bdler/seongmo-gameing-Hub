@@ -678,9 +678,9 @@
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
       });
     }
-    function toast(msg) {
+    function toast(msg, ms) {
       var t = $('toast'); t.textContent = msg; t.classList.add('show');
-      clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); }, 1800);
+      clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); }, ms || 1800);
     }
     function findGame(id) {
       for (var i = 0; i < state.games.length; i++) if (state.games[i].id === id) return state.games[i];
@@ -1185,6 +1185,16 @@
       renderAll();
     }
 
+    // 주소 끝에 ?admin (또는 #admin) 을 붙여 열었는데 관리자가 아니면 이유를 알려 줌
+    function checkAdminHint(who) {
+      google.script.url.getLocation(function (loc) {
+        if (!('admin' in (loc.parameter || {})) && loc.hash !== 'admin') return;
+        toast(who
+          ? '관리자 아님 — 지금 계정: ' + who + ' (Code.gs 의 ADMIN_EMAILS 확인)'
+          : '계정을 확인할 수 없어요 — 학교 계정으로 로그인했는지, 배포 액세스가 "smwelfare.or.kr 내 모든 사용자" 인지 확인', 10000);
+      });
+    }
+
     function showAdminButton(email) {
       state.isAdmin = true;
       $('adminBtn').style.display = '';
@@ -1207,6 +1217,10 @@
           if (!data) return;
           if (data.games && data.games.length) applyGames(mergeNewDefaults(data.games, data.knownDefaults));
           if (data.isAdmin) showAdminButton(data.email);
+          else checkAdminHint(data.who);
+        })
+        .withFailureHandler(function (err) {
+          toast('서버 연결 실패: ' + (err && err.message ? err.message : err), 8000);
         })
         .getHubData();
     } else if (location.hash === '#admin') {

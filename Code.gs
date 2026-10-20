@@ -36,7 +36,9 @@ function getHubData() {
     // 관리자가 마지막으로 저장할 때 알고 있던 기본 게임 id (새 기본 게임 자동 추가용)
     knownDefaults: loadKnownDefaults_(),
     isAdmin: admin,
-    email: admin ? email : ''
+    email: admin ? email : '',
+    // 접속한 본인 계정 (관리자 버튼이 안 뜰 때 ?admin 으로 확인용)
+    who: email
   };
 }
 
