@@ -5,7 +5,7 @@
  *   - 다음 사용자 인증 정보로 실행: 나
  *   - 액세스 권한: 모든 사용자 (태블릿용 — 로그인 없이 열림)
  *
- * 관리자 화면 열기: 허브 주소 끝에 ?admin 을 붙여 열고 관리자 비밀번호 입력
+ * 관리자 화면 열기: 허브 오른쪽 위 ⚙️ 버튼을 누르고 관리자 비밀번호 입력
  *   - 비밀번호는 프로젝트 설정(⚙️) > 스크립트 속성 에 ADMIN_PASSWORD 로 넣어 두세요.
  *   - '모든 사용자' 배포에서는 구글이 접속 계정을 알려 주지 않아서 비밀번호로 확인합니다.
  *     (액세스가 smwelfare.or.kr 인 배포라면 ADMIN_EMAILS 계정은 비밀번호 없이 관리자)
@@ -71,7 +71,7 @@ function saveGames(games, knownDefaults, password) {
   return clean;
 }
 
-/** 관리자 비밀번호 확인 (허브 주소 끝에 ?admin 을 붙여 열었을 때) */
+/** 관리자 비밀번호 확인 (허브의 ⚙️ 버튼) */
 function adminLogin(password) {
   return isAuthorized_(password);
 }

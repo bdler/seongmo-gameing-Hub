@@ -480,7 +480,7 @@
         </div>
         <div class="coins">🪙 <span id="coinCount">0</span></div>
       </div>
-      <button class="fs-btn" id="adminBtn" title="게임 관리" style="display:none">⚙️</button>
+      <button class="fs-btn" id="adminBtn" title="관리자" style="display:none">⚙️</button>
       <button class="fs-btn" id="fsBtn" data-fs title="전체화면">⛶</button>
     </header>
 
@@ -1173,7 +1173,10 @@
         .getStats(state.adminPw);
     });
 
-    $('adminBtn').addEventListener('click', openAdmin);
+    $('adminBtn').addEventListener('click', function () {
+      if (state.isAdmin) openAdmin();
+      else askAdminPassword();
+    });
     $('adminClose').addEventListener('click', closeAdmin);
     $('adminCancel').addEventListener('click', closeAdmin);
 
@@ -1198,24 +1201,21 @@
       } catch (e) { return ''; }
     }
 
-    // 주소 끝에 ?admin (또는 #admin) 을 붙여 열면 관리자 비밀번호를 물어봄
+    // 관리자 버튼: 아직 로그인 전이면 비밀번호를 물어본 뒤 관리 화면 열기
     function askAdminPassword() {
-      google.script.url.getLocation(function (loc) {
-        if (!('admin' in (loc.parameter || {})) && loc.hash !== 'admin') return;
-        var pw = prompt('관리자 비밀번호');
-        if (!pw) return;
-        google.script.run
-          .withSuccessHandler(function (ok) {
-            if (!ok) { toast('비밀번호가 맞지 않아요 (스크립트 속성 ADMIN_PASSWORD 확인)', 6000); return; }
-            state.adminPw = pw;
-            showAdminButton('비밀번호 로그인');
-            toast('관리자로 로그인했어요 — 오른쪽 위 ⚙️');
-          })
-          .withFailureHandler(function (err) {
-            toast(err && err.message ? err.message : String(err), 6000);
-          })
-          .adminLogin(pw);
-      });
+      var pw = prompt('관리자 비밀번호');
+      if (!pw) return;
+      google.script.run
+        .withSuccessHandler(function (ok) {
+          if (!ok) { toast('비밀번호가 맞지 않아요', 4000); return; }
+          state.adminPw = pw;
+          showAdminButton('비밀번호 로그인');
+          openAdmin();
+        })
+        .withFailureHandler(function (err) {
+          toast(err && err.message ? err.message : String(err), 6000);
+        })
+        .adminLogin(pw);
     }
 
     function showAdminButton(email) {
@@ -1234,13 +1234,13 @@
     }
 
     if (IS_GAS) {
+      $('adminBtn').style.display = ''; // 누르면 비밀번호 확인 (관리자 계정이면 바로 열림)
       // 앱스 스크립트: 저장된 게임 목록 + 관리자 여부 불러오기
       google.script.run
         .withSuccessHandler(function (data) {
           if (!data) return;
           if (data.games && data.games.length) applyGames(mergeNewDefaults(data.games, data.knownDefaults));
           if (data.isAdmin) showAdminButton(data.email);
-          else askAdminPassword();
         })
         .withFailureHandler(function (err) {
           toast('서버 연결 실패: ' + (err && err.message ? err.message : err), 8000);
