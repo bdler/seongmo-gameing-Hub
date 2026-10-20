@@ -428,7 +428,7 @@
     .stat span { font-size: 14px; color: var(--muted); }
     .stats-days { margin-top: 10px; display: grid; gap: 6px; font-size: 15px; }
     .sday { display: grid; grid-template-columns: 90px 1fr 110px; gap: 10px; align-items: center; }
-    .sday .bar { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #6a2cff, #ff3ea5); min-width: 2px; }
+    .sday .bar { justify-self: start; height: 12px; border-radius: 6px; background: linear-gradient(90deg, #6a2cff, #ff3ea5); }
     .sday .num { text-align: right; color: var(--muted); }
     .stats-note { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
 
@@ -1153,7 +1153,7 @@
         '</div>' +
         '<div class="stats-days">' + st.days.map(function (d) {
           return '<div class="sday"><span>' + esc(d.date.slice(5)) + '</span>' +
-            '<span class="bar" style="width:' + Math.round(d.visits / max * 100) + '%"></span>' +
+            '<span class="bar" style="width:' + (d.visits ? Math.max(2, Math.round(d.visits / max * 100)) : 0) + '%"></span>' +
             '<span class="num">' + d.users + '명 · ' + d.visits + '회</span></div>';
         }).join('') + '</div>' +
         '<p class="stats-note">최근 7일 접속 ' + week + '회 · 접속자는 계정(로그인 없이 열면 기기) 기준, 접속 횟수는 허브를 열 때마다 1회</p>';
