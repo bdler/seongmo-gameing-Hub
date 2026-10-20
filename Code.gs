@@ -16,6 +16,9 @@ var ADMIN_EMAILS = ['b3dler@smwelfare.or.kr'];
 var GAMES_KEY = 'HUB_GAMES';
 var CHUNK_SIZE = 2500; // 속성 값 1개당 약 9KB 제한 (한글은 글자당 3바이트) → 나눠서 저장
 
+var STATS_KEY = 'HUB_STATS';
+var STATS_DAYS = 30; // 날짜별 접속 기록은 최근 30일만 보관
+
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('index')
     .setTitle('성모 게이밍 허브')
@@ -27,6 +30,7 @@ function doGet() {
 function getHubData() {
   var email = currentEmail_();
   var admin = isAdmin_(email);
+  recordVisit_(email);
   return {
     games: loadGames_(),
     // 관리자가 마지막으로 저장할 때 알고 있던 기본 게임 id (새 기본 게임 자동 추가용)
@@ -60,7 +64,77 @@ function saveGames(games, knownDefaults) {
   return clean;
 }
 
+/** 관리자만 호출 가능: 접속자 수 통계 */
+function getStats() {
+  if (!isAdmin_(currentEmail_())) {
+    throw new Error('관리자 계정만 볼 수 있어요.');
+  }
+  var props = PropertiesService.getScriptProperties();
+  var tz = Session.getScriptTimeZone();
+  var days = [];
+  for (var i = 0; i < 7; i++) {
+    var date = Utilities.formatDate(new Date(Date.now() - i * 86400000), tz, 'yyyy-MM-dd');
+    var day = loadDay_(props, date);
+    days.push({ date: date, visits: day.v, users: day.u.length });
+  }
+  return {
+    total: Number(props.getProperty(STATS_KEY + '_TOTAL') || 0),
+    since: props.getProperty(STATS_KEY + '_SINCE') || '',
+    days: days // 오늘부터 6일 전까지
+  };
+}
+
 /* ---------------- 내부 함수 ---------------- */
+
+/** 허브가 열릴 때마다 접속 1회 + 오늘의 접속자(계정 기준)를 기록 */
+function recordVisit_(email) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(3000)) return; // 기록이 밀려도 허브 열기는 막지 않음
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var tz = Session.getScriptTimeZone();
+    var date = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+    var day = loadDay_(props, date);
+    day.v++;
+    // 이메일 대신 짧은 해시만 저장 (속성 크기 제한 + 개인정보 최소화)
+    var id = email ? hash_(email) : '';
+    if (id && day.u.indexOf(id) < 0) day.u.push(id);
+
+    var values = {};
+    values[STATS_KEY + '_' + date] = JSON.stringify(day);
+    values[STATS_KEY + '_TOTAL'] = String(Number(props.getProperty(STATS_KEY + '_TOTAL') || 0) + 1);
+    if (!props.getProperty(STATS_KEY + '_SINCE')) values[STATS_KEY + '_SINCE'] = date;
+    props.setProperties(values);
+
+    if (day.v === 1) {
+      // 하루의 첫 접속 때 오래된 날짜 기록 정리
+      var oldest = Utilities.formatDate(new Date(Date.now() - STATS_DAYS * 86400000), tz, 'yyyy-MM-dd');
+      var re = new RegExp('^' + STATS_KEY + '_(\\d{4}-\\d{2}-\\d{2})$');
+      props.getKeys().forEach(function (k) {
+        var m = re.exec(k);
+        if (m && m[1] < oldest) props.deleteProperty(k);
+      });
+    }
+  } catch (e) {
+    // 통계 기록 실패는 무시
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function loadDay_(props, date) {
+  try {
+    var d = JSON.parse(props.getProperty(STATS_KEY + '_' + date) || 'null');
+    if (d && typeof d.v === 'number' && Array.isArray(d.u)) return d;
+  } catch (e) {}
+  return { v: 0, u: [] };
+}
+
+function hash_(text) {
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, text);
+  return Utilities.base64EncodeWebSafe(bytes).slice(0, 8);
+}
+
 
 function currentEmail_() {
   // 같은 도메인 사용자가 접속하면 이메일이 채워지고, 그 외에는 빈 문자열

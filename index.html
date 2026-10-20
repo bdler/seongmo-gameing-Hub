@@ -417,6 +417,20 @@
     }
     .admin-foot .spacer { flex: 1; }
     @media (max-width: 700px) { .arow-grid { grid-template-columns: 1fr 1fr; } }
+    .stats { display: none; padding: 18px 18px 0; }
+    .stats.show { display: block; }
+    .stats-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .stat {
+      padding: 14px; border-radius: 16px; text-align: center;
+      background: var(--panel); border: 1px solid var(--panel-border);
+    }
+    .stat b { display: block; font-size: 30px; color: var(--neon-yellow); }
+    .stat span { font-size: 14px; color: var(--muted); }
+    .stats-days { margin-top: 10px; display: grid; gap: 6px; font-size: 15px; }
+    .sday { display: grid; grid-template-columns: 90px 1fr 110px; gap: 10px; align-items: center; }
+    .sday .bar { height: 12px; border-radius: 6px; background: linear-gradient(90deg, #6a2cff, #ff3ea5); min-width: 2px; }
+    .sday .num { text-align: right; color: var(--muted); }
+    .stats-note { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
 
     .toast {
       position: fixed; left: 50%; bottom: 100px; z-index: 60;
@@ -535,8 +549,10 @@
       <div class="admin-head">
         <h2>⚙️ 게임 관리</h2>
         <span class="who" id="adminWho"></span>
+        <button class="abtn ghost" id="statsBtn">📊 접속자</button>
         <button class="abtn ghost" id="adminClose">✕</button>
       </div>
+      <div class="stats" id="stats"></div>
       <div class="admin-list" id="adminList"></div>
       <div class="admin-foot">
         <button class="abtn" id="adminAdd">＋ 게임 추가</button>
@@ -1121,6 +1137,39 @@
           toast('저장 실패: ' + (err && err.message ? err.message : err));
         })
         .saveGames(state.draft, defaultIds());
+    });
+
+    /* ---------- 관리자: 접속자 수 ---------- */
+    function renderStats(st) {
+      var today = st.days[0];
+      var week = st.days.reduce(function (n, d) { return n + d.visits; }, 0);
+      var max = Math.max.apply(null, st.days.map(function (d) { return d.visits; }).concat([1]));
+      $('stats').innerHTML =
+        '<div class="stats-tiles">' +
+          '<div class="stat"><b>' + today.users + '</b><span>오늘 접속자</span></div>' +
+          '<div class="stat"><b>' + today.visits + '</b><span>오늘 접속 횟수</span></div>' +
+          '<div class="stat"><b>' + st.total + '</b><span>누적 접속' + (st.since ? ' (' + esc(st.since) + '~)' : '') + '</span></div>' +
+        '</div>' +
+        '<div class="stats-days">' + st.days.map(function (d) {
+          return '<div class="sday"><span>' + esc(d.date.slice(5)) + '</span>' +
+            '<span class="bar" style="width:' + Math.round(d.visits / max * 100) + '%"></span>' +
+            '<span class="num">' + d.users + '명 · ' + d.visits + '회</span></div>';
+        }).join('') + '</div>' +
+        '<p class="stats-note">최근 7일 접속 ' + week + '회 · 접속자는 계정 기준, 접속 횟수는 허브를 열 때마다 1회</p>';
+    }
+
+    $('statsBtn').addEventListener('click', function () {
+      var box = $('stats');
+      if (box.classList.contains('show')) { box.classList.remove('show'); return; }
+      if (!IS_GAS) { toast('미리보기에서는 접속자 수를 볼 수 없어요'); return; }
+      box.innerHTML = '<p class="stats-note">불러오는 중...</p>';
+      box.classList.add('show');
+      google.script.run
+        .withSuccessHandler(renderStats)
+        .withFailureHandler(function (err) {
+          box.innerHTML = '<p class="stats-note">불러오기 실패: ' + esc(err && err.message ? err.message : String(err)) + '</p>';
+        })
+        .getStats();
     });
 
     $('adminBtn').addEventListener('click', openAdmin);
